@@ -49,3 +49,8 @@ class EvalReport(BaseModel):
     avg_clarity: float
     avg_safety: float
     avg_consistency: float
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_tokens: int = 0
+    total_cost_usd: float = 0.0
+    avg_latency_ms: float = 0.0

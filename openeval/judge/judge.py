@@ -1,8 +1,10 @@
 # openeval/judge/judge.py
 
 import json
+
 from ..connectors.base import BaseConnector
-from .schemas import EvaluationResult, EvalCase, DimensionScore
+from ..observability import CallMetrics, SessionMetrics, Timer, get_logger, tracer
+from .schemas import DimensionScore, EvalCase, EvaluationResult
 
 JUDGE_SYSTEM = """Sen bir LLM değerlendirme uzmanısın.
 Sana bir soru ve o soruya verilen cevabı göndereceğim.
@@ -31,10 +33,20 @@ class Judge:
     Bir connector alır (OpenAI veya Ollama) ve EvalCase'leri değerlendirir.
     """
 
-    def __init__(self, connector: BaseConnector):
+    def __init__(
+        self,
+        connector: BaseConnector,
+        metrics: SessionMetrics | None = None,
+        tracer_client: object | None = None,
+    ):
         self.connector = connector
+        self.metrics = metrics
+        self.tracer = tracer_client or tracer
+        self.logger = get_logger(__name__)
 
     def evaluate(self, case: EvalCase) -> EvaluationResult:
+        self.logger.info("Judge değerlendiriyor: %s", case.question[:80])
+
         context_block = ""
         if case.context:
             context_block = f"Bağlam: {case.context}"
@@ -45,18 +57,39 @@ class Judge:
             context_block=context_block,
         )
 
-        response = self.connector.generate(prompt, system=JUDGE_SYSTEM)
+        with Timer() as timer:
+            response = self.connector.generate(prompt, system=JUDGE_SYSTEM)
+
+        call_metrics = CallMetrics(
+            model=response.model,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            latency_ms=timer.elapsed_ms,
+        )
+
+        if self.metrics is not None:
+            self.metrics.add(call_metrics)
 
         # JSON parse — model bazen ```json``` sarıyor, temizle
         raw = response.content.strip()
-        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        if raw.startswith("```"):
+            raw = raw.removeprefix("```json").removeprefix("```")
+            raw = raw.removesuffix("```").strip()
 
         data = json.loads(raw)
 
-        return EvaluationResult(
+        result = EvaluationResult(
             faithfulness=DimensionScore(**data["faithfulness"]),
             relevance=DimensionScore(**data["relevance"]),
             clarity=DimensionScore(**data["clarity"]),
             safety=DimensionScore(**data["safety"]),
             consistency=DimensionScore(**data["consistency"]),
         )
+
+        if getattr(self.tracer, "log_score", None):
+            for name in ["faithfulness", "relevance", "clarity", "safety", "consistency"]:
+                dimension = getattr(result, name)
+                self.tracer.log_score(name=name, value=dimension.score, comment=dimension.reasoning)
+
+        self.logger.info("Judge tamamlandı: overall=%.2f", result.overall_score)
+        return result

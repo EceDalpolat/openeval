@@ -107,3 +107,6 @@ openeval/
 - Daha iyi sonuç için değerlendirme yapan model ile judge modelini ayırabilirsin.
 - Model çıktısı JSON beklenir; judge cevabı bunu bozarsa parse hatası alınır.
 
+## Observability
+
+`openeval.observability` altında merkezi logging, opsiyonel Langfuse tracing ve temel token/maliyet/latency metrikleri için yardımcılar bulunur.

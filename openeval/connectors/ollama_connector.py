@@ -1,6 +1,8 @@
 # openeval/connectors/ollama_connector.py
 
 import httpx
+
+from ..observability import CallMetrics, Timer, get_logger, tracer
 from .base import BaseConnector, ModelResponse
 
 class OllamaConnector(BaseConnector):
@@ -19,6 +21,8 @@ class OllamaConnector(BaseConnector):
     def __init__(self, model: str = "llama3.2", base_url: str = "http://localhost:11434"):
         self._model = model
         self._base_url = base_url
+        self.logger = get_logger(__name__)
+        self.tracer = tracer
 
     @property
     def model_name(self) -> str:
@@ -40,16 +44,45 @@ class OllamaConnector(BaseConnector):
             "options": {"temperature": 0},
         }
 
-        r = httpx.post(
-            f"{self._base_url}/api/generate",
-            json=payload,
-            timeout=120,    # lokal model yavaş olabilir
-        )
+        self.logger.info("Ollama generate başladı: model=%s", self._model)
+
+        with Timer() as timer:
+            r = httpx.post(
+                f"{self._base_url}/api/generate",
+                json=payload,
+                timeout=120,    # lokal model yavaş olabilir
+            )
         r.raise_for_status()
         data = r.json()
+        content = data["response"]
+        call_metrics = CallMetrics(
+            model=self._model,
+            input_tokens=data.get("prompt_eval_count", 0),
+            output_tokens=data.get("eval_count", 0),
+            latency_ms=timer.elapsed_ms,
+        )
+
+        if getattr(self.tracer, "log_generation", None):
+            self.tracer.log_generation(
+                name="ollama.generate",
+                prompt=prompt,
+                response=content,
+                metrics=call_metrics,
+                metadata={
+                    "system_prompt": bool(system),
+                    "base_url": self._base_url,
+                },
+            )
+
+        self.logger.info(
+            "Ollama generate tamamlandı: model=%s, tokens=%d, latency_ms=%.1f",
+            self._model,
+            call_metrics.total_tokens,
+            call_metrics.latency_ms,
+        )
 
         return ModelResponse(
-            content=data["response"],
+            content=content,
             model=self._model,
             input_tokens=data.get("prompt_eval_count", 0),
             output_tokens=data.get("eval_count", 0),
