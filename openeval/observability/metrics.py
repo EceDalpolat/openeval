@@ -54,7 +54,14 @@ class SessionMetrics:
     @property
     def total_tokens(self) -> int:
         return sum(c.total_tokens for c in self.calls)
+    
+    @property
+    def total_input_tokens(self) -> int:
+        return sum(c.input_tokens for c in self.calls)
 
+    @property
+    def total_output_tokens(self) -> int:
+        return sum(c.output_tokens for c in self.calls)
     @property
     def total_cost_usd(self) -> float:
         return sum(c.cost_usd for c in self.calls)
@@ -88,3 +95,4 @@ class Timer:
 # with Timer() as t:
 #     response = connector.generate(prompt)
 # print(t.elapsed_ms)  # → 1243.7
+    # SessionMetrics'e eksik property'ler — evaluator.py icin

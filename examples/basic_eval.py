@@ -1,37 +1,28 @@
-# examples/basic_eval.py
+# examples/basic_eval.py — şu anki dosyanı şununla değiştir
 
-import os
 from dotenv import load_dotenv
 load_dotenv()
 
-from openeval.connectors.openai_connector import OpenAIConnector
+from openeval.connectors.openrouter_connector import OpenRouterConnector
+from openeval.connectors.ollama_connector import OllamaConnector
 from openeval.eval.evaluator import Evaluator
 from openeval.judge.schemas import EvalCase
-import json
 
-# Test vakalarını tanımla
 cases = [
     EvalCase(
-        question="Python'da bir listeyi tersine nasıl çevirirsin?",
-        answer="liste.reverse() metodunu veya liste[::-1] slice'ını kullanabilirsin.",
+        question="Python'da liste nasıl sıralanır?",
+        answer="sorted() veya .sort() kullanılır.",
     ),
     EvalCase(
         question="FastAPI nedir?",
-        answer="FastAPI, Python ile hızlı API geliştirmek için kullanılan modern bir framework'tür.",
-    ),
-    EvalCase(
-        question="İstanbul'un nüfusu nedir?",
-        answer="İstanbul'un nüfusu yaklaşık 15 milyondur.",
+        answer="Python ile API geliştirmek için kullanılan framework.",
     ),
 ]
 
-# Değerlendirmeyi çalıştır
-connector = OpenAIConnector(model="gpt-4o-mini")
-evaluator = Evaluator(connector=connector)
+# OpenRouter ile test et, Ollama ile judge yap
+evaluator = Evaluator(
+    connector=OpenRouterConnector(),   # ücretsiz model
+    judge_connector=OllamaConnector(model="llama3.2:3b"),  # lokal
+)
+
 report = evaluator.run(cases)
-
-# JSON olarak kaydet
-with open("report.json", "w", encoding="utf-8") as f:
-    f.write(report.model_dump_json(indent=2))
-
-print("\nrapor report.json'a kaydedildi.")

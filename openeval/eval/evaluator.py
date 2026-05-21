@@ -76,9 +76,9 @@ class Evaluator:
             avg_clarity=avg("clarity"),
             avg_safety=avg("safety"),
             avg_consistency=avg("consistency"),
-            total_input_tokens=self.metrics.usage.input_tokens,
-            total_output_tokens=self.metrics.usage.output_tokens,
-            total_tokens=self.metrics.usage.total_tokens,
+            total_input_tokens=self.metrics.total_input_tokens,
+            total_output_tokens=self.metrics.total_output_tokens,
+            total_tokens=self.metrics.total_tokens,
             total_cost_usd=self.metrics.total_cost_usd,
             avg_latency_ms=self.metrics.avg_latency_ms,
         )
