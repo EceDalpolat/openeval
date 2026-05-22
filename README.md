@@ -90,6 +90,16 @@ evaluator = Evaluator(connector=connector)
 
 içerir.
 
+## Dashboard
+
+Değerlendirme raporlarını Streamlit arayüzünde görmek için:
+
+```bash
+streamlit run openeval/report/dashboard.py
+```
+
+![OpenEval Dashboard](./Ekran%20Resmi%202026-05-22%2010.12.33.png)
+
 ## Proje yapısı
 
 ```text

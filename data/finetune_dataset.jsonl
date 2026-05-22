@@ -1,0 +1,3 @@
+{"instruction": "Python'da bir sözlüğü değere göre sırala", "response": "sorted(dict.items(), key=lambda x: x[1]) kullanılır. Büyükten küçüğe için reverse=True ekle: sorted(dict.items(), key=lambda x: x[1], reverse=True)"}
+{"instruction": "async/await Python'da ne işe yarar?", "response": "Asenkron programlama için kullanılır. I/O bound işlemlerde (API çağrısı, dosya okuma) thread oluşturmadan bekleme yapılır. asyncio event loop üzerinde çalışır, CPU bound işlemler için uygun değildir."}
+{"instruction": "LLM context window nedir?", "response": "Modelin tek seferde işleyebildiği maksimum token sayısıdır. GPT-4o 128K, Claude 200K token context'e sahiptir. Context dolunca model eski bilgileri 'unutur'."}
