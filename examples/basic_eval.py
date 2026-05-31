@@ -5,11 +5,11 @@ from openeval.connectors.openrouter_connector import OpenRouterConnector
 from openeval.connectors.ollama_connector import OllamaConnector
 from openeval.eval.evaluator import Evaluator
 from openeval.judge.schemas import EvalCase
-from openeval.rag import TFIDFRetriever
+from openeval.rag import ChromaRetriever
 import json, pathlib
 
 # RAG retriever — knowledge base'i yukle
-retriever = TFIDFRetriever(top_k=2)
+retriever = ChromaRetriever(top_k=2)
 
 def make_case(question: str, answer: str) -> EvalCase:
     """Soruya gore otomatik context ekle."""

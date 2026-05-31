@@ -1,87 +1,131 @@
 """
-TF-IDF tabanli retriever.
-Soruya gore knowledge base'den en alakali chunk'i bulur.
-Hafta 3'te ChromaDB + embedding'e gecilecek.
+ChromaDB + Ollama embedding tabanli retriever.
+TF-IDF'in yerini aldi — artik anlam benzerligi kullaniliyor.
 """
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+import chromadb
+from chromadb.config import Settings
 from .knowledge_base import get_all_documents
+from .embedder import OllamaEmbedder
 from ..observability import get_logger
 
 logger = get_logger(__name__)
 
+COLLECTION_NAME = "openeval_knowledge"
 
-class TFIDFRetriever:
+
+class ChromaRetriever:
     """
-    TF-IDF ile keyword benzerligine dayali retriever.
+    ChromaDB ile vektör tabanlı retriever.
     
-    Nasil calisir:
-    1. Tum dokumanlari vektorlestirir (TF-IDF matrix)
-    2. Sorguyu ayni sekilde vektorlestirir
-    3. Cosine similarity hesaplar
-    4. En yuksek skorlu k dokumani dondurur
+    Ilk calistirildiginda:
+      1. Knowledge base'i yukler
+      2. Her chunk'i embed eder (Ollama)
+      3. ChromaDB'ye kaydeder
+    
+    Sonraki calismalarda:
+      1. Cache'den yukler (tekrar embed etmez)
+      2. Sorguyu embed eder
+      3. En yakin chunk'lari dondurur
     """
 
-    def __init__(self, top_k: int = 2):
+    def __init__(self, top_k: int = 2, persist_dir: str = ".chromadb"):
         self.top_k = top_k
-        self.documents = get_all_documents()
-        self._build_index()
+        self.embedder = OllamaEmbedder()
 
-    def _build_index(self):
-        """TF-IDF matrisini olustur — bir kez yapilir."""
-        contents = [doc["content"] for doc in self.documents]
-        self.vectorizer = TfidfVectorizer(
-            ngram_range=(1, 2),   # tek kelime + ikili kelime grupları
-            max_features=5000,
-            stop_words=None,      # Turkce/Ingilizce karisik, stop words kapatiyoruz
+        # ChromaDB — lokal dosyaya kaydeder, uygulama kapaninca kaybolmaz
+        self.client = chromadb.PersistentClient(
+            path=persist_dir,
+            settings=Settings(anonymized_telemetry=False),
         )
-        self.tfidf_matrix = self.vectorizer.fit_transform(contents)
-        logger.debug("TF-IDF index olusturuldu: %d dokuman", len(self.documents))
+
+        self.collection = self._get_or_create_collection()
+
+    def _get_or_create_collection(self):
+        """
+        Collection varsa yukle, yoksa olustur ve doldur.
+        Bu sayede her seferinde tekrar embed etmiyoruz.
+        """
+        existing = [c.name for c in self.client.list_collections()]
+
+        if COLLECTION_NAME in existing:
+            logger.info("ChromaDB collection bulundu, cache'den yuklendi")
+            return self.client.get_collection(COLLECTION_NAME)
+
+        logger.info("ChromaDB collection olusturuluyor, knowledge base embed ediliyor...")
+        collection = self.client.create_collection(
+            name=COLLECTION_NAME,
+            metadata={"hnsw:space": "cosine"},  # cosine similarity kullan
+        )
+
+        self._index_documents(collection)
+        return collection
+
+    def _index_documents(self, collection):
+        """Knowledge base'deki tum chunk'lari embed edip ChromaDB'ye kaydet."""
+        documents = get_all_documents()
+
+        for doc in documents:
+            vector = self.embedder.embed(doc["content"])
+            collection.add(
+                ids=[doc["id"]],
+                embeddings=[vector],
+                documents=[doc["content"]],
+                metadatas=[{"topic": doc["topic"]}],
+            )
+            logger.info("Indexed: %s", doc["topic"])
+
+        logger.info("Knowledge base indexlendi: %d dokuman", len(documents))
 
     def retrieve(self, query: str) -> list[dict]:
         """
-        Sorguya en yakin top_k dokumani dondur.
+        Sorguya en yakin top_k chunk'i dondur.
         
-        Returns:
-            [{"topic": "RAG", "content": "...", "score": 0.85}, ...]
+        1. Soruyu embed et
+        2. ChromaDB'de similarity search yap
+        3. En yakin chunk'lari dondur
         """
-        query_vec = self.vectorizer.transform([query])
-        similarities = cosine_similarity(query_vec, self.tfidf_matrix).flatten()
+        query_vector = self.embedder.embed(query)
 
-        # En yuksek skorlu indexleri bul
-        top_indices = np.argsort(similarities)[::-1][:self.top_k]
+        results = self.collection.query(
+            query_embeddings=[query_vector],
+            n_results=self.top_k,
+            include=["documents", "metadatas", "distances"],
+        )
 
-        results = []
-        for idx in top_indices:
-            score = float(similarities[idx])
-            if score > 0.01:   # cok dusuk skoru atla
-                results.append({
-                    "topic": self.documents[idx]["topic"],
-                    "content": self.documents[idx]["content"],
-                    "score": round(score, 3),
-                })
-                logger.debug(
-                    "Retrieved: topic=%s, score=%.3f",
-                    self.documents[idx]["topic"], score
-                )
+        output = []
+        for i in range(len(results["ids"][0])):
+            # ChromaDB cosine distance dondurur: 0=ayni, 2=tamamen farkli
+            # Biz similarity istiyoruz: 1 - distance/2
+            distance = results["distances"][0][i]
+            similarity = round(1 - distance / 2, 3)
 
-        if not results:
-            logger.warning("Hic alakali dokuman bulunamadi: query=%s", query[:50])
+            output.append({
+                "topic": results["metadatas"][0][i]["topic"],
+                "content": results["documents"][0][i],
+                "score": similarity,
+            })
+            logger.debug(
+                "Retrieved: topic=%s, similarity=%.3f",
+                results["metadatas"][0][i]["topic"],
+                similarity,
+            )
 
-        return results
+        return output
 
     def retrieve_as_context(self, query: str) -> str:
-        """
-        Retrieve sonuclarini judge icin tek string'e donustur.
-        Bu string EvalCase.context alanina girecek.
-        """
+        """Judge icin context string olustur."""
         docs = self.retrieve(query)
         if not docs:
             return ""
 
         parts = []
         for doc in docs:
-            parts.append(f"[{doc['topic']}]\n{doc['content']}")
+            parts.append(f"[{doc['topic']}] (similarity: {doc['score']})\n{doc['content']}")
 
         return "\n\n---\n\n".join(parts)
+
+    def reset(self):
+        """Collection'i sil ve yeniden olustur. Knowledge base degisince kullan."""
+        self.client.delete_collection(COLLECTION_NAME)
+        self.collection = self._get_or_create_collection()
+        logger.info("Collection sifirlanip yeniden olusturuldu")
