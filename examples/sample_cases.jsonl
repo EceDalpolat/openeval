@@ -1,0 +1,5 @@
+# Örnek dataset — her satır bir soru/cevap/context (context opsiyonel).
+# '#' ile başlayan satırlar ve boş satırlar atlanır.
+{"question": "RAG nedir?", "answer": "RAG, LLM'e harici bilgi kaynağı ekleyerek modelin bilmediği güncel bilgileri sorgu anında sağlar.", "context": "RAG (Retrieval-Augmented Generation) retrieval ile üretimi birleştirir."}
+{"question": "Embedding nedir?", "answer": "Metni sayısal vektöre çeviren, benzer anlamları uzayda yakınlaştıran tekniktir.", "context": "Embedding metinleri vektör uzayına gömer."}
+{"question": "Temperature parametresi ne işe yarar?", "answer": "Temperature yüksekse model daha hızlı çalışır.", "context": "Temperature çıktının rastgeleliğini/yaratıcılığını ayarlar, hızını değil."}
