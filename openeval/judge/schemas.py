@@ -40,7 +40,10 @@ class EvalCase(BaseModel):
 
 class EvalReport(BaseModel):
     """Tüm değerlendirmenin özeti."""
-    model: str
+    model: str                      # cevapları üreten sistem (subject)
+    judge_model: str = ""           # puanlamayı yapan model
+    dataset: str | None = None      # hangi dataset puanlandı
+    created_at: str = ""            # ISO timestamp — ne zaman koşuldu
     total_cases: int
     results: list[EvaluationResult]
     avg_overall: float

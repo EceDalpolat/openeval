@@ -1,5 +1,7 @@
 # openeval/eval/evaluator.py
 
+from datetime import datetime, timezone
+
 from rich.console import Console
 from rich.table import Table
 
@@ -25,6 +27,7 @@ class Evaluator:
         judge_connector: BaseConnector | None = None,
         tracer_client: object | None = None,
         subject_label: str | None = None,
+        dataset: str | None = None,
     ):
         # openeval cevabı ÜRETMEZ — dataset'teki hazır cevapları PUANLAR.
         # Bu yüzden subject connector opsiyonel; sadece judge yeterli.
@@ -46,6 +49,7 @@ class Evaluator:
         self.subject_label = subject_label or (
             connector.model_name if connector else "pre-generated"
         )
+        self.dataset = dataset
 
     def run(self, cases: list[EvalCase]) -> EvalReport:
         results = []
@@ -78,6 +82,9 @@ class Evaluator:
 
         report = EvalReport(
             model=self.subject_label,
+            judge_model=self.judge.connector.model_name,
+            dataset=self.dataset,
+            created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             total_cases=len(cases),
             results=results,
             avg_overall=sum(r.overall_score for r in results) / len(results),
@@ -114,6 +121,10 @@ class Evaluator:
         return report
 
     def _print_summary(self, report: EvalReport):
+        console.print(
+            f"[dim]judge: {report.judge_model} · dataset: {report.dataset or '-'} "
+            f"· {report.created_at}[/dim]"
+        )
         table = Table(title=f"Sonuçlar — {report.model}")
         table.add_column("Boyut", style="cyan")
         table.add_column("Ortalama Skor", style="green")

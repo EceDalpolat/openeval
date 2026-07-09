@@ -25,6 +25,9 @@ class CallMetrics:
 
     @property
     def cost_usd(self) -> float:
+        # Lokal modeller (Ollama) ücretsiz — API maliyeti yok.
+        if self.model.startswith(("ollama/", "local/")):
+            return 0.0
         pricing = COST_PER_1K_TOKENS.get(self.model, COST_PER_1K_TOKENS["default"])
         return (
             self.input_tokens  / 1000 * pricing["input"] +

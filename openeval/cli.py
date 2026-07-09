@@ -49,7 +49,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Cevapları üreten sistem etiketi: verilmezse dataset dosya adı
     label = args.label or Path(args.cases).stem
 
-    evaluator = Evaluator(judge_connector=judge, subject_label=label)
+    evaluator = Evaluator(
+        judge_connector=judge, subject_label=label, dataset=str(args.cases)
+    )
     report = evaluator.run(cases)
 
     out = Path(args.out)
