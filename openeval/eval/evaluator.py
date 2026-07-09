@@ -21,32 +21,42 @@ class Evaluator:
 
     def __init__(
         self,
-        connector: BaseConnector,
+        connector: BaseConnector | None = None,
         judge_connector: BaseConnector | None = None,
         tracer_client: object | None = None,
+        subject_label: str | None = None,
     ):
+        # openeval cevabı ÜRETMEZ — dataset'teki hazır cevapları PUANLAR.
+        # Bu yüzden subject connector opsiyonel; sadece judge yeterli.
+        if connector is None and judge_connector is None:
+            raise ValueError(
+                "En az bir connector gerekli (judge_connector veya connector)."
+            )
         self.connector = connector
         self.logger = get_logger(__name__)
         self.metrics = SessionMetrics()
         self.tracer = tracer_client or tracer
-        # Judge için ayrı model kullanabilirsin (daha güçlü biri)
-        # Verilmezse aynı connector kullanılır
+        # Judge için ayrı (daha güçlü) model verebilirsin; verilmezse subject connector.
         self.judge = Judge(
             judge_connector or connector,
             metrics=self.metrics,
             tracer_client=self.tracer,
         )
+        # Cevapları üreten sistemin etiketi (raporda "hangi sistemi ölçtük" için).
+        self.subject_label = subject_label or (
+            connector.model_name if connector else "pre-generated"
+        )
 
     def run(self, cases: list[EvalCase]) -> EvalReport:
         results = []
 
-        self.logger.info("Evaluation başladı: cases=%d, model=%s", len(cases), self.connector.model_name)
+        self.logger.info("Evaluation başladı: cases=%d, model=%s", len(cases), self.subject_label)
         if getattr(self.tracer, "start_trace", None):
             self.tracer.start_trace(
                 name="openeval.run",
                 metadata={
-                    "model": self.connector.model_name,
-                    "judge_model": (self.judge.connector.model_name if self.judge.connector else self.connector.model_name),
+                    "model": self.subject_label,
+                    "judge_model": self.judge.connector.model_name,
                     "total_cases": len(cases),
                 },
             )
@@ -67,7 +77,7 @@ class Evaluator:
         avg = lambda dim: sum(getattr(r, dim).score for r in results) / len(results)
 
         report = EvalReport(
-            model=self.connector.model_name,
+            model=self.subject_label,
             total_cases=len(cases),
             results=results,
             avg_overall=sum(r.overall_score for r in results) / len(results),

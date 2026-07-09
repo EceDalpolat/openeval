@@ -18,6 +18,9 @@ dependencies = [
     "streamlit>=1.35.0",  # dashboard (hafta 3)
 ]
 
+[project.scripts]
+openeval = "openeval.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
 
