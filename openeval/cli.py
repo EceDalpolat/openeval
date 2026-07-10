@@ -61,6 +61,45 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compare(args: argparse.Namespace) -> int:
+    from rich.console import Console
+    from rich.table import Table
+
+    from .compare import diff_reports
+    from .judge.schemas import EvalReport
+
+    before = EvalReport.model_validate_json(
+        Path(args.before).read_text(encoding="utf-8")
+    )
+    after = EvalReport.model_validate_json(
+        Path(args.after).read_text(encoding="utf-8")
+    )
+
+    label_b = args.label_before or Path(args.before).stem
+    label_a = args.label_after or Path(args.after).stem
+
+    console = Console()
+    table = Table(title=f"Karşılaştırma — {label_b} → {label_a}")
+    table.add_column("Boyut", style="cyan")
+    table.add_column(label_b, justify="right")
+    table.add_column(label_a, justify="right")
+    table.add_column("Δ", justify="right")
+
+    for row in diff_reports(before, after):
+        d = row["delta"]
+        color = "green" if d > 0 else "red" if d < 0 else "dim"
+        sign = "+" if d > 0 else ""
+        style = "bold" if row["dimension"] == "overall" else ""
+        table.add_row(
+            f"[{style}]{row['dimension']}[/{style}]" if style else row["dimension"],
+            f"{row['before']:.2f}",
+            f"{row['after']:.2f}",
+            f"[{color}]{sign}{d:.2f}[/{color}]",
+        )
+    console.print(table)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="openeval",
@@ -92,6 +131,13 @@ def main(argv: list[str] | None = None) -> int:
         help="Cevapları üreten sistemin adı (varsayılan: dataset dosya adı)",
     )
     p_run.set_defaults(func=cmd_run)
+
+    p_cmp = sub.add_parser("compare", help="İki raporu kıyasla (before → after)")
+    p_cmp.add_argument("before", help="Önceki rapor (JSON)")
+    p_cmp.add_argument("after", help="Sonraki rapor (JSON)")
+    p_cmp.add_argument("--label-before", default=None, help="Önce sütunu etiketi")
+    p_cmp.add_argument("--label-after", default=None, help="Sonra sütunu etiketi")
+    p_cmp.set_defaults(func=cmd_compare)
 
     args = parser.parse_args(argv)
     return args.func(args)
