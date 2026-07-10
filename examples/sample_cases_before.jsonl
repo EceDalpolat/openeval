@@ -1,4 +1,4 @@
-# "Önce" (zayıf cevaplar) — compare demosu için. Aynı sorular, kötü cevaplar.
-{"question": "RAG nedir?", "answer": "Bir şeydir işte.", "context": "RAG retrieval ile üretimi birleştirir."}
-{"question": "Embedding nedir?", "answer": "Bir tür veri.", "context": "Embedding metinleri vektör uzayına gömer."}
-{"question": "Temperature parametresi ne işe yarar?", "answer": "Bilmiyorum.", "context": "Temperature çıktının rastgeleliğini ayarlar."}
+# "Before" (weak answers) — for the compare demo. Same questions, poor answers.
+{"question": "What is RAG?", "answer": "It's a thing.", "context": "RAG combines retrieval with generation."}
+{"question": "What is embedding?", "answer": "A kind of data.", "context": "Embedding maps text into a vector space."}
+{"question": "What does the temperature parameter do?", "answer": "I don't know.", "context": "Temperature controls the randomness of the output."}

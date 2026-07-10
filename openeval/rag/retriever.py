@@ -1,6 +1,6 @@
 """
-ChromaDB + Ollama embedding tabanli retriever.
-TF-IDF'in yerini aldi — artik anlam benzerligi kullaniliyor.
+Retriever based on ChromaDB + Ollama embeddings.
+Replaced TF-IDF — semantic similarity is now used.
 """
 import chromadb
 from chromadb.config import Settings
@@ -15,24 +15,24 @@ COLLECTION_NAME = "openeval_knowledge"
 
 class ChromaRetriever:
     """
-    ChromaDB ile vektör tabanlı retriever.
-    
-    Ilk calistirildiginda:
-      1. Knowledge base'i yukler
-      2. Her chunk'i embed eder (Ollama)
-      3. ChromaDB'ye kaydeder
-    
-    Sonraki calismalarda:
-      1. Cache'den yukler (tekrar embed etmez)
-      2. Sorguyu embed eder
-      3. En yakin chunk'lari dondurur
+    A vector-based retriever using ChromaDB.
+
+    On the first run:
+      1. Loads the knowledge base
+      2. Embeds each chunk (Ollama)
+      3. Stores it in ChromaDB
+
+    On subsequent runs:
+      1. Loads from cache (does not re-embed)
+      2. Embeds the query
+      3. Returns the closest chunks
     """
 
     def __init__(self, top_k: int = 2, persist_dir: str = ".chromadb"):
         self.top_k = top_k
         self.embedder = OllamaEmbedder()
 
-        # ChromaDB — lokal dosyaya kaydeder, uygulama kapaninca kaybolmaz
+        # ChromaDB — persists to a local file, does not vanish when the app closes
         self.client = chromadb.PersistentClient(
             path=persist_dir,
             settings=Settings(anonymized_telemetry=False),
@@ -42,26 +42,26 @@ class ChromaRetriever:
 
     def _get_or_create_collection(self):
         """
-        Collection varsa yukle, yoksa olustur ve doldur.
-        Bu sayede her seferinde tekrar embed etmiyoruz.
+        Load the collection if it exists, otherwise create and populate it.
+        This way we do not re-embed every time.
         """
         existing = [c.name for c in self.client.list_collections()]
 
         if COLLECTION_NAME in existing:
-            logger.info("ChromaDB collection bulundu, cache'den yuklendi")
+            logger.info("ChromaDB collection found, loaded from cache")
             return self.client.get_collection(COLLECTION_NAME)
 
-        logger.info("ChromaDB collection olusturuluyor, knowledge base embed ediliyor...")
+        logger.info("Creating ChromaDB collection, embedding the knowledge base...")
         collection = self.client.create_collection(
             name=COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},  # cosine similarity kullan
+            metadata={"hnsw:space": "cosine"},  # use cosine similarity
         )
 
         self._index_documents(collection)
         return collection
 
     def _index_documents(self, collection):
-        """Knowledge base'deki tum chunk'lari embed edip ChromaDB'ye kaydet."""
+        """Embed all chunks in the knowledge base and store them in ChromaDB."""
         documents = get_all_documents()
 
         for doc in documents:
@@ -74,15 +74,15 @@ class ChromaRetriever:
             )
             logger.info("Indexed: %s", doc["topic"])
 
-        logger.info("Knowledge base indexlendi: %d dokuman", len(documents))
+        logger.info("Knowledge base indexed: %d documents", len(documents))
 
     def retrieve(self, query: str) -> list[dict]:
         """
-        Sorguya en yakin top_k chunk'i dondur.
-        
-        1. Soruyu embed et
-        2. ChromaDB'de similarity search yap
-        3. En yakin chunk'lari dondur
+        Return the top_k chunks closest to the query.
+
+        1. Embed the question
+        2. Do a similarity search in ChromaDB
+        3. Return the closest chunks
         """
         query_vector = self.embedder.embed(query)
 
@@ -94,8 +94,8 @@ class ChromaRetriever:
 
         output = []
         for i in range(len(results["ids"][0])):
-            # ChromaDB cosine distance dondurur: 0=ayni, 2=tamamen farkli
-            # Biz similarity istiyoruz: 1 - distance/2
+            # ChromaDB returns cosine distance: 0=identical, 2=completely different
+            # We want similarity: 1 - distance/2
             distance = results["distances"][0][i]
             similarity = round(1 - distance / 2, 3)
 
@@ -113,7 +113,7 @@ class ChromaRetriever:
         return output
 
     def retrieve_as_context(self, query: str) -> str:
-        """Judge icin context string olustur."""
+        """Build a context string for the judge."""
         docs = self.retrieve(query)
         if not docs:
             return ""
@@ -125,7 +125,7 @@ class ChromaRetriever:
         return "\n\n---\n\n".join(parts)
 
     def reset(self):
-        """Collection'i sil ve yeniden olustur. Knowledge base degisince kullan."""
+        """Delete and recreate the collection. Use this when the knowledge base changes."""
         self.client.delete_collection(COLLECTION_NAME)
         self.collection = self._get_or_create_collection()
-        logger.info("Collection sifirlanip yeniden olusturuldu")
+        logger.info("Collection reset and recreated")
