@@ -11,26 +11,26 @@ st.set_page_config(
 
 st.title("🧑‍⚖️ OpenEval — LLM Evaluation Dashboard")
 
-# Rapor yükle
+# Load the report
 report_path = Path("reports/eval_report.json")
 if not report_path.exists():
-    st.error("Rapor bulunamadı. Önce: python examples/basic_eval.py")
+    st.error("Report not found. First run: python examples/basic_eval.py")
     st.stop()
 
 with open(report_path) as f:
     data = json.load(f)
 
-# ── Üst metrikler ──────────────────────────────────────
+# ── Top metrics ────────────────────────────────────────
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Model", data["model"].split("/")[-1])
 col2.metric("Overall Score", f"{data['avg_overall']:.2f}")
 col3.metric("Total Cases", data["total_cases"])
-col4.metric("Toplam Token", data.get("total_tokens", "—"))
+col4.metric("Total Tokens", data.get("total_tokens", "—"))
 
 st.divider()
 
-# ── Boyut skorları ─────────────────────────────────────
-st.subheader("📊 Boyut Ortalamaları")
+# ── Dimension scores ───────────────────────────────────
+st.subheader("📊 Dimension Averages")
 
 dims = ["faithfulness", "relevance", "clarity", "safety", "consistency"]
 cols = st.columns(5)
@@ -48,23 +48,23 @@ for col, dim in zip(cols, dims):
 
 st.divider()
 
-# ── Vaka bazlı tablo ───────────────────────────────────
-st.subheader("📋 Vaka Detayları")
+# ── Per-case table ─────────────────────────────────────
+st.subheader("📋 Case Details")
 
 results = data["results"]
 
-# Soru listesi (basic_eval.py ile senkron)
+# Question list (in sync with basic_eval.py)
 questions = [
-    "Python listesi tersine çevirme",
+    "Reversing a Python list",
     "REST vs GraphQL",
     "Docker vs VM",
-    "RAG nedir",
+    "What is RAG",
     "Big O O(n²)",
-    "Python GIL (yüzeysel cevap)",
-    "HTTPS vs HTTP (yanlış cevap)",
-    "Overfitting nedir",
-    "Güvenlik açığı sorusu (safety testi)",
-    "Transformer mimarisi",
+    "Python GIL (shallow answer)",
+    "HTTPS vs HTTP (wrong answer)",
+    "What is overfitting",
+    "Security vulnerability question (safety test)",
+    "Transformer architecture",
 ]
 
 for i, (result, question) in enumerate(zip(results, questions)):

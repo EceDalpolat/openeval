@@ -1,122 +1,128 @@
 # OpenEval
 
-OpenEval, LLM çıktılarının otomatik olarak değerlendirilmesi için hafif bir Python çerçevesidir.  
-OpenAI API veya yerel Ollama modelleriyle çalışır ve bir değerlendirme raporu üretir.
+[![PyPI](https://img.shields.io/pypi/v/openeval-llm.svg)](https://pypi.org/project/openeval-llm/)
+[![Python](https://img.shields.io/pypi/pyversions/openeval-llm.svg)](https://pypi.org/project/openeval-llm/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Özellikler
+A lightweight **LLM-as-judge** evaluation tool. It takes a dataset of
+question/answer pairs, has a strong "judge" model score each answer across 5
+dimensions, and compares two runs to show the **before/after** delta.
+Works with OpenAI, OpenRouter, or a local Ollama model.
 
-- `OpenAIConnector` ile OpenAI modellerine bağlanır
-- `OllamaConnector` ile yerel modelleri kullanır
-- `Evaluator` ile soru/cevap vakalarını toplu değerlendirir
-- `LLM-as-judge` yaklaşımıyla 5 boyutta skor üretir:
-  - `faithfulness`
-  - `relevance`
-  - `clarity`
-  - `safety`
-  - `consistency`
-
-## Kurulum
-
-Python 3.11 veya üzeri gerekir.
+## Install
 
 ```bash
-pip install -e .
+pip install openeval-llm
 ```
 
-Geliştirme bağımlılıkları için:
+> The distribution name is `openeval-llm`; the import and command name is `openeval`.
+
+## Quickstart (CLI)
+
+Score a JSONL dataset — one `{"question", "answer", "context"}` object per line:
 
 ```bash
-pip install -e ".[dev]"
+# With a local Ollama judge (free, private)
+openeval run cases.jsonl --judge-provider ollama --judge-model llama3.2
+
+# ...or OpenAI / OpenRouter (put the API key in .env)
+openeval run cases.jsonl --judge-provider openai --judge-model gpt-4o-mini
 ```
 
-## Ortam değişkenleri
+Output — per-dimension averages, token/cost/latency, and provenance
+(judge, dataset, timestamp):
 
-OpenAI kullanıyorsan `OPENAI_API_KEY` tanımla:
+```
+       Results — cases
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Dimension     ┃ Avg Score     ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ faithfulness  │ 0.73          │
+│ relevance     │ 0.93          │
+│ overall       │ 0.85          │
+└───────────────┴───────────────┘
+```
+
+## Before / after comparison
+
+Run the same system two ways (e.g. a feature on vs off), then compare:
 
 ```bash
-cp .env.example .env
+openeval compare reports/report_before.json reports/report_after.json
 ```
 
-Ardından `.env` içine anahtarını ekle.
-
-## Hızlı başlangıç
-
-`examples/basic_eval.py` dosyasını örnek olarak kullanabilirsin:
-
-```python
-from openeval.connectors.openai_connector import OpenAIConnector
-from openeval.eval.evaluator import Evaluator
-from openeval.judge.schemas import EvalCase
-
-cases = [
-    EvalCase(
-        question="Python'da bir listeyi tersine nasıl çevirirsin?",
-        answer="liste.reverse() metodunu veya liste[::-1] slice'ını kullanabilirsin.",
-    ),
-]
-
-connector = OpenAIConnector(model="gpt-4o-mini")
-evaluator = Evaluator(connector=connector)
-report = evaluator.run(cases)
+```
+Dimension     before  after    Δ
+faithfulness  0.71    0.88   +0.17
+overall       0.70    0.85   +0.15
 ```
 
-## Ollama ile kullanım
+## The 5 dimensions
 
-Yerel model çalıştırmak için:
+| Dimension | Measures | Weight |
+|---|---|---|
+| faithfulness | Is the answer factually correct? | 0.30 |
+| relevance | Does it address the question? | 0.30 |
+| clarity | Is it clear and well-explained? | 0.20 |
+| safety | Is it safe / non-harmful? | 0.10 |
+| consistency | Is it internally consistent? | 0.10 |
 
-```bash
-ollama serve
-ollama pull llama3.2
-```
+`overall` is the weighted average — faithfulness and relevance dominate.
 
-Sonra:
+## Python API
 
 ```python
 from openeval.connectors.ollama_connector import OllamaConnector
+from openeval.dataset import load_cases
 from openeval.eval.evaluator import Evaluator
 
-connector = OllamaConnector(model="llama3.2")
-evaluator = Evaluator(connector=connector)
+cases = load_cases("cases.jsonl")
+evaluator = Evaluator(judge_connector=OllamaConnector(model="llama3.2"))
+report = evaluator.run(cases)
+print(report.avg_overall)
 ```
 
-## Çıktı
+## Highlights
 
-`Evaluator.run(...)` bir `EvalReport` döndürür. Bu rapor:
+- **Crash-proof judge:** survives when the judge wraps its answer in
+  ` ```json ` fences, adds preamble, or omits a dimension (JSON extraction +
+  neutral defaults + retry on transient errors).
+- **Judge ≠ subject:** pick a judge stronger than the system that produced the
+  answers; OpenEval scores pre-generated answers, so it never runs the subject.
+- **Provenance in every report:** judge model, dataset, and timestamp are
+  recorded for reproducibility.
+- **Local = free:** Ollama models are billed at $0.
 
-- model adını
-- toplam vaka sayısını
-- her vaka için detaylı `EvaluationResult` listesini
-- boyut bazlı ortalama skorları
+## Ollama setup
 
-içerir.
+```bash
+brew install ollama      # macOS
+ollama pull llama3.2
+ollama serve
+```
 
-## Dashboard
-
-Değerlendirme raporlarını Streamlit arayüzünde görmek için:
+## Dashboard (optional)
 
 ```bash
 streamlit run openeval/report/dashboard.py
 ```
 
-![OpenEval Dashboard](./Ekran%20Resmi%202026-05-22%2010.12.33.png)
-
-## Proje yapısı
+## Project layout
 
 ```text
 openeval/
-├── connectors/   # model sağlayıcıları
-├── eval/         # ana değerlendirme akışı
-├── judge/        # skorlayan LLM judge mantığı
-├── report/       # rapor yardımcıları
-└── examples/     # kullanım örnekleri
+├── connectors/    # model providers (OpenAI / OpenRouter / Ollama)
+├── dataset.py     # JSONL loader
+├── eval/          # main evaluation flow (Evaluator)
+├── judge/         # the scoring LLM-judge logic
+├── compare.py     # before/after comparison
+├── cli.py         # `openeval run` / `openeval compare`
+├── observability/ # logging, token/cost/latency, optional Langfuse
+└── report/        # report helpers + Streamlit dashboard
 ```
 
-## Notlar
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for a deeper walkthrough.
 
-- Judge modeli, varsayılan olarak değerlendirme connector’ı ile aynı olabilir.
-- Daha iyi sonuç için değerlendirme yapan model ile judge modelini ayırabilirsin.
-- Model çıktısı JSON beklenir; judge cevabı bunu bozarsa parse hatası alınır.
+## License
 
-## Observability
-
-`openeval.observability` altında merkezi logging, opsiyonel Langfuse tracing ve temel token/maliyet/latency metrikleri için yardımcılar bulunur.
+MIT — see [LICENSE](LICENSE).

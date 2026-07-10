@@ -1,5 +1,5 @@
-# Örnek dataset — her satır bir soru/cevap/context (context opsiyonel).
-# '#' ile başlayan satırlar ve boş satırlar atlanır.
-{"question": "RAG nedir?", "answer": "RAG, LLM'e harici bilgi kaynağı ekleyerek modelin bilmediği güncel bilgileri sorgu anında sağlar.", "context": "RAG (Retrieval-Augmented Generation) retrieval ile üretimi birleştirir."}
-{"question": "Embedding nedir?", "answer": "Metni sayısal vektöre çeviren, benzer anlamları uzayda yakınlaştıran tekniktir.", "context": "Embedding metinleri vektör uzayına gömer."}
-{"question": "Temperature parametresi ne işe yarar?", "answer": "Temperature yüksekse model daha hızlı çalışır.", "context": "Temperature çıktının rastgeleliğini/yaratıcılığını ayarlar, hızını değil."}
+# Example dataset — each line is a question/answer/context (context is optional).
+# Lines starting with '#' and blank lines are skipped.
+{"question": "What is RAG?", "answer": "RAG adds an external knowledge source to an LLM, providing up-to-date information the model does not know at query time.", "context": "RAG (Retrieval-Augmented Generation) combines retrieval with generation."}
+{"question": "What is embedding?", "answer": "It is a technique that converts text into a numeric vector, placing similar meanings close together in space.", "context": "Embedding maps text into a vector space."}
+{"question": "What does the temperature parameter do?", "answer": "If temperature is high, the model runs faster.", "context": "Temperature controls the randomness/creativity of the output, not its speed."}

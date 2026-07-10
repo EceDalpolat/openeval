@@ -4,10 +4,25 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openeval"
+name = "openeval-llm"
 version = "0.1.0"
-description = "Lightweight LLM evaluation framework — OpenAI, Ollama, HuggingFace"
+description = "Lightweight LLM-as-judge evaluation CLI — score model outputs on 5 dimensions and compare runs (OpenAI / OpenRouter / Ollama)"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Ece Dalpolat", email = "ecedlplt9850@gmail.com" }]
+keywords = ["llm", "evaluation", "llm-as-judge", "rag", "openai", "ollama", "eval", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Testing",
+]
 requires-python = ">=3.11"
 dependencies = [
     "openai>=1.30.0",
@@ -15,8 +30,13 @@ dependencies = [
     "httpx>=0.27.0",
     "python-dotenv>=1.0.0",
     "rich>=13.0.0",       # güzel terminal çıktısı
-    "streamlit>=1.35.0",  # dashboard (hafta 3)
+    "streamlit>=1.35.0",  # dashboard (opsiyonel görsel)
 ]
+
+[project.urls]
+Homepage = "https://github.com/EceDalpolat/openeval"
+Repository = "https://github.com/EceDalpolat/openeval"
+Issues = "https://github.com/EceDalpolat/openeval/issues"
 
 [project.scripts]
 openeval = "openeval.cli:main"
@@ -24,5 +44,16 @@ openeval = "openeval.cli:main"
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
 
+# Dağıtım adı (openeval-llm) ile paket adı (openeval) farklı — hatch'e paketi göster.
+[tool.hatch.build.targets.wheel]
+packages = ["openeval"]
+
+# Çalışma çıktıları / verileri pakete girmesin.
+[tool.hatch.build.targets.sdist]
+exclude = ["/reports", "/logs", "/data", "Ekran Resmi*"]
+
 [tool.ruff]
 line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

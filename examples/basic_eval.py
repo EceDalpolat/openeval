@@ -8,56 +8,56 @@ from openeval.judge.schemas import EvalCase
 from openeval.rag import ChromaRetriever
 import json, pathlib
 
-# RAG retriever — knowledge base'i yukle
+# RAG retriever — load the knowledge base
 retriever = ChromaRetriever(top_k=2)
 
 def make_case(question: str, answer: str) -> EvalCase:
-    """Soruya gore otomatik context ekle."""
+    """Automatically add context based on the question."""
     context = retriever.retrieve_as_context(question)
     return EvalCase(question=question, answer=answer, context=context)
 
 cases = [
-    # Dogru cevaplar
+    # Correct answers
     make_case(
-        "RAG nedir ve ne zaman kullanılır?",
-        "RAG, LLM'e harici bilgi kaynağı ekler. Modelin bilmediği "
-        "güncel bilgileri sorgu anında vermek için kullanılır.",
+        "What is RAG and when is it used?",
+        "RAG adds an external knowledge source to an LLM. It is used to provide "
+        "up-to-date information the model does not know at query time.",
     ),
     make_case(
-        "Embedding nedir?",
-        "Metni sayısal vektöre dönüştürme işlemidir. "
-        "Benzer anlamlı metinler uzayda birbirine yakın durur.",
+        "What is embedding?",
+        "It is the process of converting text into a numeric vector. "
+        "Semantically similar texts end up close to each other in the space.",
     ),
     make_case(
-        "Fine-tuning ile RAG arasındaki fark nedir?",
-        "RAG güncel/dinamik bilgiler için, fine-tuning ise "
-        "modelin davranışını veya tonunu değiştirmek için kullanılır.",
+        "What is the difference between fine-tuning and RAG?",
+        "RAG is for up-to-date/dynamic information, while fine-tuning is "
+        "for changing the model's behavior or tone.",
     ),
     make_case(
-        "LLM'de hallucination nedir?",
-        "Modelin yanlış ama emin görünen bilgi üretmesidir.",
+        "What is hallucination in an LLM?",
+        "It is the model producing wrong but confident-looking information.",
     ),
     make_case(
-        "LoRA nedir?",
-        "Modelin tüm parametrelerini değil, küçük adapter "
-        "katmanlarını eğiten fine-tuning yöntemidir.",
+        "What is LoRA?",
+        "It is a fine-tuning method that trains small adapter layers "
+        "instead of all of the model's parameters.",
     ),
-    # Eksik/yanlis cevaplar — judge yakalamali
+    # Incomplete/wrong answers — the judge should catch these
     make_case(
-        "Vektör veritabanı nedir?",
-        "Bir tür veritabanıdır.",   # cok yuzeysel
-    ),
-    make_case(
-        "Context window nedir?",
-        "Modelin hafızasıdır.",     # eksik tanim
+        "What is a vector database?",
+        "It is a kind of database.",   # very shallow
     ),
     make_case(
-        "Temperature parametresi ne işe yarar?",
-        "Temperature yüksekse model daha hızlı çalışır.",  # yanlis!
+        "What is a context window?",
+        "It is the model's memory.",     # incomplete definition
+    ),
+    make_case(
+        "What does the temperature parameter do?",
+        "If temperature is high, the model runs faster.",  # wrong!
     ),
 ]
 
-print(f"\n📚 RAG aktif — {len(cases)} vaka, knowledge base yuklu\n")
+print(f"\n📚 RAG active — {len(cases)} cases, knowledge base loaded\n")
 
 evaluator = Evaluator(
     connector=OpenRouterConnector(
@@ -68,9 +68,9 @@ evaluator = Evaluator(
 
 report = evaluator.run(cases)
 
-# Raporu kaydet
+# Save the report
 pathlib.Path("reports").mkdir(exist_ok=True)
 with open("reports/eval_report.json", "w", encoding="utf-8") as f:
     f.write(report.model_dump_json(indent=2))
 
-print("\n✅ Rapor kaydedildi: reports/eval_report.json")
+print("\n✅ Report saved: reports/eval_report.json")

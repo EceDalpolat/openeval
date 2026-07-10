@@ -1,11 +1,11 @@
 # openeval/cli.py
 #
-# Terminal komutu. Amaç: kod yazmadan `openeval run cases.jsonl` deyip puan almak.
+# Terminal command. Goal: score answers by running `openeval run cases.jsonl`, no code needed.
 #
 #   openeval run examples/sample_cases.jsonl
-#   openeval run cevaplar.jsonl --judge-model openai/gpt-4o --judge-provider openrouter
+#   openeval run answers.jsonl --judge-model openai/gpt-4o --judge-provider openrouter
 #
-# openeval cevap ÜRETMEZ — dataset'teki hazır cevapları bir "judge" modele puanlatır.
+# openeval does NOT produce answers — it has a "judge" model score the pre-generated answers in the dataset.
 
 import argparse
 import sys
@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 
 def _build_connector(provider: str, model: str):
-    """provider adına göre doğru connector'ı kurar."""
+    """Builds the right connector based on the provider name."""
     if provider == "openrouter":
         from .connectors.openrouter_connector import OpenRouterConnector
         return OpenRouterConnector(model=model)
@@ -25,13 +25,13 @@ def _build_connector(provider: str, model: str):
     if provider == "ollama":
         from .connectors.ollama_connector import OllamaConnector
         return OllamaConnector(model=model)
-    raise ValueError(f"Bilinmeyen provider: {provider}")
+    raise ValueError(f"Unknown provider: {provider}")
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    load_dotenv()  # .env'den API anahtarlarını yükle
+    load_dotenv()  # load API keys from .env
 
-    # Ağır importları komut çalışınca yap (CLI açılışı hızlı kalsın)
+    # Do the heavy imports when the command runs (keeps CLI startup fast)
     from .dataset import load_cases
     from .eval.evaluator import Evaluator
 
@@ -40,13 +40,13 @@ def cmd_run(args: argparse.Namespace) -> int:
     judge = _build_connector(args.judge_provider, args.judge_model)
     if not judge.is_available():
         print(
-            f"❌ Judge modeli erişilebilir değil: {args.judge_provider}/{args.judge_model}\n"
-            f"   OpenRouter/OpenAI için .env'de API anahtarı, Ollama için lokal servis gerekli.",
+            f"❌ Judge not available: {args.judge_provider}/{args.judge_model}\n"
+            f"   OpenRouter/OpenAI need an API key in .env; Ollama needs the local service running.",
             file=sys.stderr,
         )
         return 1
 
-    # Cevapları üreten sistem etiketi: verilmezse dataset dosya adı
+    # Label for the system that produced the answers: defaults to the dataset filename
     label = args.label or Path(args.cases).stem
 
     evaluator = Evaluator(
@@ -57,7 +57,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(report.model_dump_json(indent=2), encoding="utf-8")
-    print(f"\n✅ Rapor kaydedildi: {out}")
+    print(f"\n✅ Report saved: {out}")
     return 0
 
 
@@ -79,8 +79,8 @@ def cmd_compare(args: argparse.Namespace) -> int:
     label_a = args.label_after or Path(args.after).stem
 
     console = Console()
-    table = Table(title=f"Karşılaştırma — {label_b} → {label_a}")
-    table.add_column("Boyut", style="cyan")
+    table = Table(title=f"Comparison — {label_b} → {label_a}")
+    table.add_column("Dimension", style="cyan")
     table.add_column(label_b, justify="right")
     table.add_column(label_a, justify="right")
     table.add_column("Δ", justify="right")
@@ -103,40 +103,40 @@ def cmd_compare(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="openeval",
-        description="Hafif LLM değerlendirme aracı — cevapları judge modele puanlatır.",
+        description="Lightweight LLM-as-judge evaluation — score answers with a judge model.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_run = sub.add_parser("run", help="Bir JSONL dataset'i puanla")
-    p_run.add_argument("cases", help="Puanlanacak .jsonl dosyası")
+    p_run = sub.add_parser("run", help="Score a JSONL dataset")
+    p_run.add_argument("cases", help="The .jsonl dataset to score")
     p_run.add_argument(
         "--judge-model",
         default="meta-llama/llama-3.2-3b-instruct:free",
-        help="Judge modeli (varsayılan: OpenRouter ücretsiz Llama 3.2 3B)",
+        help="Judge model (default: OpenRouter free Llama 3.2 3B)",
     )
     p_run.add_argument(
         "--judge-provider",
         default="openrouter",
         choices=["openrouter", "openai", "ollama"],
-        help="Judge sağlayıcısı (varsayılan: openrouter)",
+        help="Judge provider (default: openrouter)",
     )
     p_run.add_argument(
         "--out",
         default="reports/report.json",
-        help="Rapor çıktısı (varsayılan: reports/report.json)",
+        help="Report output path (default: reports/report.json)",
     )
     p_run.add_argument(
         "--label",
         default=None,
-        help="Cevapları üreten sistemin adı (varsayılan: dataset dosya adı)",
+        help="Name of the system that produced the answers (default: dataset filename)",
     )
     p_run.set_defaults(func=cmd_run)
 
-    p_cmp = sub.add_parser("compare", help="İki raporu kıyasla (before → after)")
-    p_cmp.add_argument("before", help="Önceki rapor (JSON)")
-    p_cmp.add_argument("after", help="Sonraki rapor (JSON)")
-    p_cmp.add_argument("--label-before", default=None, help="Önce sütunu etiketi")
-    p_cmp.add_argument("--label-after", default=None, help="Sonra sütunu etiketi")
+    p_cmp = sub.add_parser("compare", help="Compare two reports (before → after)")
+    p_cmp.add_argument("before", help="Earlier report (JSON)")
+    p_cmp.add_argument("after", help="Later report (JSON)")
+    p_cmp.add_argument("--label-before", default=None, help="Label for the 'before' column")
+    p_cmp.add_argument("--label-after", default=None, help="Label for the 'after' column")
     p_cmp.set_defaults(func=cmd_compare)
 
     args = parser.parse_args(argv)

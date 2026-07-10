@@ -1,4 +1,4 @@
-# `python -m openeval ...` çalışsın diye.
+# So that `python -m openeval ...` works.
 from .cli import main
 
 if __name__ == "__main__":

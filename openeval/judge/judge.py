@@ -3,10 +3,10 @@ import json
 from ..observability import CallMetrics, SessionMetrics, Timer, get_logger, tracer
 from .schemas import DimensionScore, EvalCase, EvaluationResult
 
-# Puanlanan 5 boyut — tek yerde tanımlı ki her yerde tutarlı kalsın.
+# The 5 scored dimensions — defined in one place so they stay consistent everywhere.
 DIMENSIONS = ["faithfulness", "relevance", "clarity", "safety", "consistency"]
 
-# Geçici (network/API) hatada kaç kez tekrar deneyelim.
+# How many times to retry on a transient (network/API) error.
 MAX_RETRIES = 3
 
 JUDGE_SYSTEM = """You are an expert LLM evaluation judge.
@@ -38,20 +38,20 @@ Return ONLY this JSON with real scores and real reasoning (1-2 sentences each):
 
 def extract_json(raw: str) -> dict:
     """
-    Model çıktısından JSON objesini çıkarır — model başına/sonuna metin,
-    ```json``` bloğu veya 'düşünce' eklese bile.
+    Extract the JSON object from the model output — even if the model adds text
+    before/after it, a ```json``` block, or some 'reasoning'.
 
-    Strateji: önce fence'leri temizle, sonra ilk '{' ile son '}' arasını al.
-    Hiç JSON yoksa hata fırlatır (çağıran taraf yakalar).
+    Strategy: strip fences first, then take everything between the first '{' and
+    the last '}'. Raises an error if there is no JSON at all (the caller catches it).
     """
     text = raw.strip()
 
-    # ```json ... ``` veya ``` ... ``` bloklarını soy
+    # Strip ```json ... ``` or ``` ... ``` blocks
     if text.startswith("```"):
         text = text.removeprefix("```json").removeprefix("```")
         text = text.removesuffix("```").strip()
 
-    # Model önüne "Here is the JSON:" gibi bir şey yazdıysa, süslü parantezleri bul
+    # If the model wrote something like "Here is the JSON:" up front, find the braces
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
@@ -62,12 +62,12 @@ def extract_json(raw: str) -> dict:
 
 def coerce_dimension(data: dict, key: str) -> DimensionScore:
     """
-    Bir boyutu güvenli şekilde DimensionScore'a çevirir.
-    Eksik/bozuksa çökmek yerine nötr bir default döner (0.0 + açıklama).
+    Safely convert a single dimension into a DimensionScore.
+    If it is missing/malformed, return a neutral default (0.0 + note) instead of crashing.
     """
     entry = data.get(key)
     if not isinstance(entry, dict) or "score" not in entry:
-        return DimensionScore(score=0.0, reasoning=f"[eksik] judge '{key}' döndürmedi")
+        return DimensionScore(score=0.0, reasoning=f"[missing] judge did not return '{key}'")
 
     score = entry.get("score", 0.0)
     try:
@@ -75,11 +75,11 @@ def coerce_dimension(data: dict, key: str) -> DimensionScore:
     except (TypeError, ValueError):
         score = 0.0
 
-    if score > 1:  # model 90 yazdıysa 0.9'a çevir
+    if score > 1:  # if the model wrote 90, convert it to 0.9
         score = round(score / 100, 2)
-    score = max(0.0, min(1.0, score))  # 0.0–1.0 aralığına sıkıştır
+    score = max(0.0, min(1.0, score))  # clamp to the 0.0–1.0 range
 
-    reasoning = str(entry.get("reasoning") or "(gerekçe yok)")
+    reasoning = str(entry.get("reasoning") or "(no reasoning)")
     return DimensionScore(score=score, reasoning=reasoning)
 
 
@@ -106,15 +106,15 @@ class Judge:
             try:
                 with Timer() as timer:
                     response = self.connector.generate(prompt, system=JUDGE_SYSTEM)
-            except Exception as e:  # noqa: BLE001 — geçici API/network hatası, tekrar dene
+            except Exception as e:  # noqa: BLE001 — transient API/network error, retry
                 last_error = e
                 self.logger.warning(
-                    "Judge generate denemesi %d/%d başarısız: %s",
+                    "Judge generate attempt %d/%d failed: %s",
                     attempt, self.max_retries, e,
                 )
                 continue
 
-            # Yanıt geldi — maliyeti muhasebeleştir
+            # Response received — account for the cost
             if self.metrics is not None:
                 self.metrics.add(
                     CallMetrics(
@@ -127,14 +127,14 @@ class Judge:
 
             self.logger.debug("Raw response: %s", response.content[:300])
 
-            # Parse deterministik (temperature=0) — tekrar denemek yerine
-            # bozuksa güvenli default'a düş. Böylece tek bir kötü cevap tüm
-            # koşuyu çökertmez.
+            # Parsing is deterministic (temperature=0) — instead of retrying,
+            # fall back to a safe default if it is malformed. That way a single
+            # bad answer cannot crash the whole run.
             try:
                 data = extract_json(response.content)
             except (json.JSONDecodeError, ValueError):
                 self.logger.warning(
-                    "Judge çıktısından JSON çıkarılamadı; nötr default'a düşülüyor. "
+                    "Could not extract JSON from the judge output; falling back to neutral defaults. "
                     "Raw: %s", response.content[:200],
                 )
                 data = {}
@@ -145,7 +145,7 @@ class Judge:
             self.logger.info("Judge done: overall=%.2f", result.overall_score)
             return result
 
-        # Buraya geldiyse generate her denemede patladı — judge gerçekten erişilemez.
+        # If we got here, generate failed on every attempt — the judge is truly unreachable.
         raise RuntimeError(
-            f"Judge {self.max_retries} denemede de yanıt üretemedi: {last_error}"
+            f"Judge failed to produce a response after {self.max_retries} attempts: {last_error}"
         )

@@ -1,0 +1,29 @@
+name: Publish to PyPI
+
+# Publishes when you create a GitHub Release (or push a v* tag).
+# Uses PyPI Trusted Publishing (OIDC) — no API token secrets needed.
+# One-time setup on https://pypi.org: Account → Publishing → add
+# GitHub repo EceDalpolat/openeval, workflow publish.yml, environment pypi.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # required for PyPI Trusted Publishing
+      contents: read   # explicit permissions reset everything else to none; checkout needs this
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

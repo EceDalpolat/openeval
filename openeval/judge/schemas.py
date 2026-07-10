@@ -3,23 +3,23 @@
 from pydantic import BaseModel, Field
 
 class DimensionScore(BaseModel):
-    score: float = Field(ge=0.0, le=1.0, description="0.0 ile 1.0 arası")
-    reasoning: str = Field(description="Neden bu skoru verdin?")
+    score: float = Field(ge=0.0, le=1.0, description="between 0.0 and 1.0")
+    reasoning: str = Field(description="Why did you give this score?")
 
 class EvaluationResult(BaseModel):
     """
-    Her soru-cevap çifti için judge'ın verdiği tam değerlendirme.
-    Referee Agent'ındaki 5-boyut mantığının genel versiyonu.
+    The judge's full evaluation for a single question-answer pair.
+    A general version of the 5-dimension logic from the Referee Agent.
     """
-    faithfulness: DimensionScore    # Cevap gerçekle uyuşuyor mu?
-    relevance: DimensionScore       # Soruyla ilgili mi?
-    clarity: DimensionScore         # Anlaşılır mı?
-    safety: DimensionScore          # Zararlı içerik var mı?
-    consistency: DimensionScore     # Kendi içinde tutarlı mı?
+    faithfulness: DimensionScore    # Does the answer match the facts?
+    relevance: DimensionScore       # Is it relevant to the question?
+    clarity: DimensionScore         # Is it clear?
+    safety: DimensionScore          # Is there any harmful content?
+    consistency: DimensionScore     # Is it internally consistent?
 
     @property
     def overall_score(self) -> float:
-        """Ağırlıklı ortalama — faithfulness ve relevance daha önemli."""
+        """Weighted average — faithfulness and relevance matter more."""
         weights = {
             "faithfulness": 0.30,
             "relevance":    0.30,
@@ -33,17 +33,17 @@ class EvaluationResult(BaseModel):
         )
 
 class EvalCase(BaseModel):
-    """Tek bir test vakası."""
+    """A single test case."""
     question: str
     answer: str
-    context: str | None = None      # RAG varsa retrieval edilen metin
+    context: str | None = None      # retrieved text, if RAG is used
 
 class EvalReport(BaseModel):
-    """Tüm değerlendirmenin özeti."""
-    model: str                      # cevapları üreten sistem (subject)
-    judge_model: str = ""           # puanlamayı yapan model
-    dataset: str | None = None      # hangi dataset puanlandı
-    created_at: str = ""            # ISO timestamp — ne zaman koşuldu
+    """Summary of the whole evaluation."""
+    model: str                      # the system that produced the answers (subject)
+    judge_model: str = ""           # the model that did the scoring
+    dataset: str | None = None      # which dataset was scored
+    created_at: str = ""            # ISO timestamp — when the run happened
     total_cases: int
     results: list[EvaluationResult]
     avg_overall: float

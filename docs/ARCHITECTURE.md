@@ -1,34 +1,36 @@
-# openeval — Mimari
+# openeval — Architecture
 
-openeval, bir LLM'in cevaplarını başka bir LLM'e ("hakem") not verdirerek ölçen
-hafif bir değerlendirme aracıdır. Yöntem literatürde **LLM-as-judge** olarak geçer.
+openeval is a lightweight evaluation tool that measures one LLM's answers by having
+another LLM (the "judge") grade them. The method is known in the literature as
+**LLM-as-judge**.
 
-**Neden?** "Sistemim iyi cevap veriyor" demek yetmez — ölçmek gerekir. Binlerce cevabı
-elle okumak yerine, güçlü bir modeli hakem yapıp her cevaba 5 boyutta 0–1 arası not
-verdiririz.
+**Why?** Saying "my system gives good answers" is not enough — you have to measure it.
+Instead of reading thousands of answers by hand, we make a strong model the judge and
+have it grade every answer on 5 dimensions from 0 to 1.
 
 ---
 
-## Veri akışı
+## Data flow
 
 ```
 dataset.jsonl                          [1] dataset.py: load_cases()
   │  {question, answer, context}
   ▼
-list[EvalCase]                         [2] cli.py: judge connector'ı kur (ollama/openai/…)
+list[EvalCase]                         [2] cli.py: set up the judge connector (ollama/openai/…)
   │
   ▼
-Evaluator.run(cases)                   [3] eval/evaluator.py: orkestratör
-  │  her vaka için ────────────┐
+Evaluator.run(cases)                   [3] eval/evaluator.py: orchestrator
+  │  for each case ────────────┐
   ▼                            │
-Judge.evaluate(case)           │       [4] judge/judge.py: asıl not veren
-  │  prompt kur → judge modele │
-  │  gönder → JSON'u parse et  │
+Judge.evaluate(case)           │       [4] judge/judge.py: the actual grader
+  │  build prompt → send to    │
+  │  the judge model → parse   │
+  │  the JSON                  │
   ▼                            │
-EvaluationResult (5 boyut)  ◄──┘       [5] judge/schemas.py: skorlar + overall
+EvaluationResult (5 dims)   ◄──┘       [5] judge/schemas.py: scores + overall
   │
-  ▼  (biriktir + ortalama al)
-EvalReport  ──► reports/report.json    [6] künye + ortalamalar + maliyet
+  ▼  (accumulate + average)
+EvalReport  ──► reports/report.json    [6] metadata + averages + cost
   │
   ▼
 compare a.json b.json                  [7] compare.py: before/after Δ
@@ -36,90 +38,93 @@ compare a.json b.json                  [7] compare.py: before/after Δ
 
 ---
 
-## Bileşenler
+## Components
 
-### Şemalar — `judge/schemas.py`
-Sistemin veri tipleri:
+### Schemas — `judge/schemas.py`
+The system's data types:
 
-- **`EvalCase`** — tek test: `question`, `answer`, `context` (opsiyonel RAG metni).
-- **`DimensionScore`** — tek boyutun notu: `score` (0.0–1.0) + `reasoning`.
-- **`EvaluationResult`** — bir cevabın 5 boyutlu notu. `overall_score` **ağırlıklı**
-  ortalamadır (aşağıdaki tablo). Cevap akıcı ama yanlışsa overall yine düşer.
-- **`EvalReport`** — koşunun özeti: boyut ortalamaları + token/maliyet/latency +
-  künye (`judge_model`, `dataset`, `created_at`).
+- **`EvalCase`** — a single test: `question`, `answer`, `context` (optional RAG text).
+- **`DimensionScore`** — a single dimension's grade: `score` (0.0–1.0) + `reasoning`.
+- **`EvaluationResult`** — a 5-dimension grade for one answer. `overall_score` is a
+  **weighted** average (see the table below). If an answer is fluent but wrong, overall
+  still drops.
+- **`EvalReport`** — the run's summary: dimension averages + tokens/cost/latency +
+  metadata (`judge_model`, `dataset`, `created_at`).
 
-### 5 boyut
-| Boyut | Ölçtüğü | Ağırlık |
+### The 5 dimensions
+| Dimension | Measures | Weight |
 |---|---|---|
-| faithfulness | Cevap doğru mu? | 0.30 |
-| relevance | Soruyu cevaplıyor mu? | 0.30 |
-| clarity | Anlaşılır mı? | 0.20 |
-| safety | Zararlı/etik dışı mı? | 0.10 |
-| consistency | Kendi içinde çelişiyor mu? | 0.10 |
+| faithfulness | Is the answer correct? | 0.30 |
+| relevance | Does it answer the question? | 0.30 |
+| clarity | Is it understandable? | 0.20 |
+| safety | Is it harmful/unethical? | 0.10 |
+| consistency | Does it contradict itself? | 0.10 |
 
-### Connector'lar — `connectors/`
-Modellerle konuşan katman. `BaseConnector` bir sözleşmedir (abstract): her connector
-`generate(prompt)`, `is_available()`, `model_name` sağlar. İmplementasyonlar: OpenAI,
-OpenRouter, Ollama. Aynı arayüz sayesinde judge modelini değiştirmek tek satırdır.
+### Connectors — `connectors/`
+The layer that talks to the models. `BaseConnector` is a contract (abstract): every
+connector provides `generate(prompt)`, `is_available()`, `model_name`. Implementations:
+OpenAI, OpenRouter, Ollama. Thanks to the shared interface, switching the judge model is
+a one-liner.
 
-**subject vs judge — kritik ayrım:**
-- **subject**: cevapları *üreten* sistem (ör. agentic-rag). openeval bunu **çalıştırmaz**,
-  yalnızca adını etiket (`subject_label`) olarak tutar.
-- **judge**: cevaplara *not veren* model — genelde subject'ten daha güçlü seçilir.
+**subject vs judge — a key distinction:**
+- **subject**: the system that *produces* the answers (e.g. agentic-rag). openeval does
+  **not run** it, it only keeps its name as a label (`subject_label`).
+- **judge**: the model that *grades* the answers — usually chosen to be stronger than the subject.
 
-openeval hazır (pre-generated) cevapları puanladığı için subject connector zorunlu
-değildir; yalnızca judge yeterlidir.
+Because openeval scores pre-generated answers, the subject connector is not required;
+the judge alone is enough.
 
-### Hakem — `judge/judge.py`
-`evaluate(case)` adımları:
-1. Prompt kurar (soru + cevap + context), "SADECE şu JSON'u döndür" talimatıyla.
-2. Judge modele `temperature=0` ile gönderir → tekrarlanabilirlik.
-3. Cevabı dayanıklı şekilde ayrıştırır:
-   - `extract_json()` — model ```` ```fence ```` veya önsöz eklese bile JSON'u çeker.
-   - `coerce_dimension()` — eksik/bozuk boyut → nötr 0.0 + not; `90→0.9`; 0–1'e sıkıştır.
-   - retry — geçici API hatasında `MAX_RETRIES` kez dener.
-4. `EvaluationResult` döndürür. Tek bir bozuk cevap tüm koşuyu çökertemez.
+### The judge — `judge/judge.py`
+Steps in `evaluate(case)`:
+1. Builds a prompt (question + answer + context) with the instruction "return ONLY this JSON".
+2. Sends it to the judge model with `temperature=0` → reproducibility.
+3. Parses the response robustly:
+   - `extract_json()` — pulls out the JSON even if the model adds a ```` ```fence ```` or a preamble.
+   - `coerce_dimension()` — missing/malformed dimension → neutral 0.0 + note; `90→0.9`; clamped to 0–1.
+   - retry — retries `MAX_RETRIES` times on a transient API error.
+4. Returns an `EvaluationResult`. A single bad answer cannot crash the whole run.
 
-### Orkestratör — `eval/evaluator.py`
-Vakaları tek tek hakeme verir, sonuçları toplar, ortalamaları hesaplar, künyeyi ve
-metrikleri ekler, `EvalReport` üretir, özet tabloyu çizer. Kullanıcının dokunduğu ana
-sınıf.
+### Orchestrator — `eval/evaluator.py`
+Feeds cases to the judge one by one, collects the results, computes the averages, adds the
+metadata and metrics, produces an `EvalReport`, and prints the summary table. This is the
+main class the user interacts with.
 
-### Metrikler — `observability/metrics.py`
-- `Timer` — çağrı süresi.
-- `CallMetrics` — tek çağrının token/maliyet/latency'si. `cost_usd`, model adına göre
-  fiyatlanır; `ollama/…` ve `local/…` modelleri $0 (lokal, ücretsiz).
-- `SessionMetrics` — tüm koşunun toplamı.
+### Metrics — `observability/metrics.py`
+- `Timer` — call duration.
+- `CallMetrics` — a single call's tokens/cost/latency. `cost_usd` is priced by the model
+  name; `ollama/…` and `local/…` models are $0 (local, free).
+- `SessionMetrics` — the total for the whole run.
 
 ### Loader / Compare / CLI
-- `dataset.py` — JSONL → `list[EvalCase]`; bozuk satırda net hata verir.
-- `compare.py` — `diff_reports(before, after)` boyut-boyut farkı hesaplar.
-- `cli.py` — `run` (bir dataset'i puanla) ve `compare` (iki raporu kıyasla) komutları.
+- `dataset.py` — JSONL → `list[EvalCase]`; gives a clear error on a bad line.
+- `compare.py` — `diff_reports(before, after)` computes the difference dimension by dimension.
+- `cli.py` — the `run` (score a dataset) and `compare` (compare two reports) commands.
 
 ---
 
-## Örnek: tek cevabın hikâyesi
-Girdi: `"RAG nedir?"` + `"Bir şeydir işte."` →
-Judge prompt'a gömülür → modele gider → judge döner:
+## Example: the story of a single answer
+Input: `"What is RAG?"` + `"It's a thing."` →
+It is embedded in the judge prompt → goes to the model → the judge returns:
 `faithfulness 0.2, relevance 0.3, clarity 0.3, safety 1.0, consistency 0.6` →
-overall = 0.2·0.3 + 0.3·0.3 + 0.3·0.2 + 1.0·0.1 + 0.6·0.1 ≈ **0.31** (düşük — boş cevap).
+overall = 0.2·0.3 + 0.3·0.3 + 0.3·0.2 + 1.0·0.1 + 0.6·0.1 ≈ **0.31** (low — an empty answer).
 
 ---
 
-## Kullanım
+## Usage
 
 ```bash
-# Bir dataset'i puanla (lokal Ollama hakemiyle)
+# Score a dataset (with a local Ollama judge)
 openeval run examples/sample_cases.jsonl --judge-provider ollama --judge-model llama3.2
 
-# İki koşuyu kıyasla (before → after)
+# Compare two runs (before → after)
 openeval compare reports/report_before.json reports/report.json
 ```
 
 ---
 
-## Dürüst sınır — "hakem de bir LLM, neden güveniyorsun?"
-Tam güvenmiyoruz. Hakem bias'lı olabilir, kolay soruya cömert davranabilir. Azaltma
-yolları: (a) judge'ı subject'ten güçlü seç, (b) `temperature=0` ile deterministik yap,
-(c) `reasoning` tut ki her not denetlenebilir olsun, (d) çoklu hakem / insan spot-check
-(bu aracın mevcut kapsamının ötesi). Bu sınırı bilmek, sistemi anlamanın parçasıdır.
+## An honest limitation — "the judge is also an LLM, why trust it?"
+We don't fully trust it. The judge can be biased and can be generous on easy questions.
+Ways to mitigate: (a) pick a judge stronger than the subject, (b) make it deterministic
+with `temperature=0`, (c) keep the `reasoning` so every grade is auditable, (d) multiple
+judges / human spot-checks (beyond this tool's current scope). Knowing this limitation is
+part of understanding the system.

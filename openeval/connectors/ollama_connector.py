@@ -7,15 +7,15 @@ from .base import BaseConnector, ModelResponse
 
 class OllamaConnector(BaseConnector):
     """
-    Ollama connector — lokal modeller için (Llama3, Mistral, vb.)
-    
-    Kurulum:
+    Ollama connector — for local models (Llama3, Mistral, etc.)
+
+    Setup:
         brew install ollama           # macOS
-        ollama pull llama3.2          # modeli indir
-        ollama serve                  # servisi başlat
-    
-    Ollama, localhost:11434'te REST API sunar.
-    OpenAI ile aynı interface — sadece URL değişiyor.
+        ollama pull llama3.2          # download the model
+        ollama serve                  # start the service
+
+    Ollama serves a REST API at localhost:11434.
+    Same interface as OpenAI — only the URL changes.
     """
 
     def __init__(self, model: str = "llama3.2", base_url: str = "http://localhost:11434"):
@@ -44,13 +44,13 @@ class OllamaConnector(BaseConnector):
             "options": {"temperature": 0},
         }
 
-        self.logger.info("Ollama generate başladı: model=%s", self._model)
+        self.logger.info("Ollama generate started: model=%s", self._model)
 
         with Timer() as timer:
             r = httpx.post(
                 f"{self._base_url}/api/generate",
                 json=payload,
-                timeout=120,    # lokal model yavaş olabilir
+                timeout=120,    # a local model can be slow
             )
         r.raise_for_status()
         data = r.json()
@@ -75,7 +75,7 @@ class OllamaConnector(BaseConnector):
             )
 
         self.logger.info(
-            "Ollama generate tamamlandı: model=%s, tokens=%d, latency_ms=%.1f",
+            "Ollama generate completed: model=%s, tokens=%d, latency_ms=%.1f",
             self._model,
             call_metrics.total_tokens,
             call_metrics.latency_ms,
@@ -83,7 +83,7 @@ class OllamaConnector(BaseConnector):
 
         return ModelResponse(
             content=content,
-            model=self.model_name,  # "ollama/..." → maliyet $0 olarak tanınsın
+            model=self.model_name,  # "ollama/..." → recognized as $0 cost
             input_tokens=data.get("prompt_eval_count", 0),
             output_tokens=data.get("eval_count", 0),
         )
