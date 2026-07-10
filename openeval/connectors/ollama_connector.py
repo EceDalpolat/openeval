@@ -83,7 +83,7 @@ class OllamaConnector(BaseConnector):
 
         return ModelResponse(
             content=content,
-            model=self._model,
+            model=self.model_name,  # "ollama/..." → maliyet $0 olarak tanınsın
             input_tokens=data.get("prompt_eval_count", 0),
             output_tokens=data.get("eval_count", 0),
         )

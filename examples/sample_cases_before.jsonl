@@ -1,0 +1,4 @@
+# "Önce" (zayıf cevaplar) — compare demosu için. Aynı sorular, kötü cevaplar.
+{"question": "RAG nedir?", "answer": "Bir şeydir işte.", "context": "RAG retrieval ile üretimi birleştirir."}
+{"question": "Embedding nedir?", "answer": "Bir tür veri.", "context": "Embedding metinleri vektör uzayına gömer."}
+{"question": "Temperature parametresi ne işe yarar?", "answer": "Bilmiyorum.", "context": "Temperature çıktının rastgeleliğini ayarlar."}
