@@ -1,19 +1,19 @@
 # openeval/compare.py
 #
-# İki raporu kıyaslar: before → after. Asıl değeri buradan alıyoruz —
-# "faithfulness 0.71 → 0.88 (+0.17)" gibi before/after impact metrikleri.
-# Örn: agentic-rag'de Auditor döngüsü KAPALI vs AÇIK.
+# Compares two reports: before → after. This is where the real value comes from —
+# before/after impact metrics like "faithfulness 0.71 → 0.88 (+0.17)".
+# For example: Auditor loop OFF vs ON in agentic-rag.
 
 from .judge.schemas import EvalReport
 
-# overall dahil tüm boyutlar (hepsi rapor içinde avg_<dim> olarak duruyor)
+# all dimensions including overall (each stored as avg_<dim> in the report)
 DIMENSIONS = ["faithfulness", "relevance", "clarity", "safety", "consistency", "overall"]
 
 
 def diff_reports(before: EvalReport, after: EvalReport) -> list[dict]:
     """
-    Her boyut için before, after ve delta (after - before) döndürür.
-    delta > 0  → iyileşme,  delta < 0 → kötüleşme.
+    Returns before, after and delta (after - before) for each dimension.
+    delta > 0  → improvement,  delta < 0 → regression.
     """
     rows = []
     for dim in DIMENSIONS:

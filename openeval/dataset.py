@@ -1,12 +1,12 @@
 # openeval/dataset.py
 #
-# JSONL dataset loader — bir .jsonl dosyasını okuyup EvalCase listesine çevirir.
+# JSONL dataset loader — reads a .jsonl file and turns it into a list of EvalCase.
 #
-# JSONL = "JSON Lines": her SATIR ayrı bir JSON objesi. Örnek bir satır:
-#   {"question": "RAG nedir?", "answer": "...", "context": "..."}
+# JSONL = "JSON Lines": each LINE is a separate JSON object. An example line:
+#   {"question": "What is RAG?", "answer": "...", "context": "..."}
 #
-# Neden JSONL? Çünkü herhangi bir proje (agentic-rag, finance) çıktısını satır satır
-# bu dosyaya döküp openeval'e "şunu puanla" diyebilir. Elle Python yazmaya son.
+# Why JSONL? Because any project (agentic-rag, finance) can dump its output line by
+# line into this file and tell openeval "score this". No more writing Python by hand.
 
 import json
 from pathlib import Path
@@ -16,38 +16,38 @@ from .judge.schemas import EvalCase
 
 def load_cases(path: str | Path) -> list[EvalCase]:
     """
-    Bir .jsonl dosyasını okuyup EvalCase listesi döndürür.
+    Reads a .jsonl file and returns a list of EvalCase.
 
-    Her satır şu alanları içermeli:
-      - question (zorunlu): sorulan soru
-      - answer   (zorunlu): sistemin verdiği cevap (openeval bunu puanlar)
-      - context  (opsiyonel): RAG varsa retrieval edilen metin
+    Each line must contain these fields:
+      - question (required): the question being asked
+      - answer   (required): the answer the system gave (openeval scores this)
+      - context  (optional): retrieved text, if RAG is used
 
-    Hatalı satırda, hangi satırda ne olduğunu net söyler (sessizce atlamaz).
+    On a bad line, it states clearly what went wrong and on which line (it does not skip silently).
     """
     path = Path(path)
     if not path.exists():
-        raise FileNotFoundError(f"Dataset bulunamadı: {path}")
+        raise FileNotFoundError(f"Dataset not found: {path}")
 
     cases: list[EvalCase] = []
 
     with path.open(encoding="utf-8") as f:
         for line_no, raw in enumerate(f, 1):
             raw = raw.strip()
-            if not raw or raw.startswith("#"):  # boş satır / yorum → atla
+            if not raw or raw.startswith("#"):  # empty line / comment → skip
                 continue
 
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError as e:
                 raise ValueError(
-                    f"{path}:{line_no} geçerli JSON değil → {e.msg}"
+                    f"{path}:{line_no} is not valid JSON → {e.msg}"
                 ) from e
 
             if "question" not in data or "answer" not in data:
                 raise ValueError(
-                    f"{path}:{line_no} 'question' ve 'answer' alanları zorunlu. "
-                    f"Gelen alanlar: {list(data.keys())}"
+                    f"{path}:{line_no} the 'question' and 'answer' fields are required. "
+                    f"Fields found: {list(data.keys())}"
                 )
 
             cases.append(
@@ -59,6 +59,6 @@ def load_cases(path: str | Path) -> list[EvalCase]:
             )
 
     if not cases:
-        raise ValueError(f"{path} içinde geçerli vaka yok (dosya boş mu?)")
+        raise ValueError(f"No valid cases in {path} (is the file empty?)")
 
     return cases

@@ -14,9 +14,9 @@ console = Console()
 
 class Evaluator:
     """
-    Ana sınıf. Kullanıcı sadece bunu kullanır.
-    
-    Örnek:
+    The main class. This is the only thing the user interacts with.
+
+    Example:
         evaluator = Evaluator(connector=OpenAIConnector())
         report = evaluator.run(cases)
     """
@@ -29,23 +29,23 @@ class Evaluator:
         subject_label: str | None = None,
         dataset: str | None = None,
     ):
-        # openeval cevabı ÜRETMEZ — dataset'teki hazır cevapları PUANLAR.
-        # Bu yüzden subject connector opsiyonel; sadece judge yeterli.
+        # openeval does NOT produce answers — it SCORES the pre-generated answers in the dataset.
+        # So the subject connector is optional; the judge alone is enough.
         if connector is None and judge_connector is None:
             raise ValueError(
-                "En az bir connector gerekli (judge_connector veya connector)."
+                "At least one connector is required (judge_connector or connector)."
             )
         self.connector = connector
         self.logger = get_logger(__name__)
         self.metrics = SessionMetrics()
         self.tracer = tracer_client or tracer
-        # Judge için ayrı (daha güçlü) model verebilirsin; verilmezse subject connector.
+        # You can pass a separate (stronger) model for the judge; if not, the subject connector is used.
         self.judge = Judge(
             judge_connector or connector,
             metrics=self.metrics,
             tracer_client=self.tracer,
         )
-        # Cevapları üreten sistemin etiketi (raporda "hangi sistemi ölçtük" için).
+        # Label of the system that produced the answers (for "which system did we measure" in the report).
         self.subject_label = subject_label or (
             connector.model_name if connector else "pre-generated"
         )
@@ -54,7 +54,7 @@ class Evaluator:
     def run(self, cases: list[EvalCase]) -> EvalReport:
         results = []
 
-        self.logger.info("Evaluation başladı: cases=%d, model=%s", len(cases), self.subject_label)
+        self.logger.info("Evaluation started: cases=%d, model=%s", len(cases), self.subject_label)
         if getattr(self.tracer, "start_trace", None):
             self.tracer.start_trace(
                 name="openeval.run",
@@ -65,19 +65,19 @@ class Evaluator:
                 },
             )
 
-        console.print(f"\n[bold]OpenEval[/bold] — {len(cases)} vaka değerlendiriliyor\n")
+        console.print(f"\n[bold]OpenEval[/bold] — evaluating {len(cases)} cases\n")
 
         for i, case in enumerate(cases, 1):
             console.print(f"[{i}/{len(cases)}] {case.question[:60]}...")
-            self.logger.info("Case %d/%d işleniyor", i, len(cases))
+            self.logger.info("Processing case %d/%d", i, len(cases))
 
-            # 1. Modelden cevap al (connector verilmemişse case.answer kullanılır)
+            # 1. Get an answer from the model (if no connector was given, case.answer is used)
             result = self.judge.evaluate(case)
             results.append(result)
             console.print(f"  → overall: [green]{result.overall_score:.2f}[/green]")
-            self.logger.info("Case %d tamamlandı: overall=%.2f", i, result.overall_score)
+            self.logger.info("Case %d completed: overall=%.2f", i, result.overall_score)
 
-        # Ortalamalar
+        # Averages
         avg = lambda dim: sum(getattr(r, dim).score for r in results) / len(results)
 
         report = EvalReport(
@@ -112,7 +112,7 @@ class Evaluator:
                 }
             )
         self.logger.info(
-            "Evaluation bitti: avg_overall=%.2f, tokens=%d, cost=%.6f, avg_latency_ms=%.1f",
+            "Evaluation finished: avg_overall=%.2f, tokens=%d, cost=%.6f, avg_latency_ms=%.1f",
             report.avg_overall,
             report.total_tokens,
             report.total_cost_usd,
@@ -125,9 +125,9 @@ class Evaluator:
             f"[dim]judge: {report.judge_model} · dataset: {report.dataset or '-'} "
             f"· {report.created_at}[/dim]"
         )
-        table = Table(title=f"Sonuçlar — {report.model}")
-        table.add_column("Boyut", style="cyan")
-        table.add_column("Ortalama Skor", style="green")
+        table = Table(title=f"Results — {report.model}")
+        table.add_column("Dimension", style="cyan")
+        table.add_column("Average Score", style="green")
 
         for dim in ["faithfulness", "relevance", "clarity", "safety", "consistency"]:
             score = getattr(report, f"avg_{dim}")

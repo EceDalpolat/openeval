@@ -1,6 +1,6 @@
 """
-Ollama nomic-embed-text ile lokal embedding.
-Tamamen ucretsiz, M4'te hizli calisir.
+Local embedding with Ollama's nomic-embed-text.
+Completely free, runs fast on the M4.
 """
 import httpx
 from ..observability import get_logger
@@ -10,13 +10,13 @@ logger = get_logger(__name__)
 
 class OllamaEmbedder:
     """
-    Metni 768 boyutlu vektore donusturur.
-    Ollama'nin nomic-embed-text modelini kullanir.
-    
-    Nasil calisir:
-      "RAG nedir?" → [0.82, -0.14, 0.56, ...] (768 sayi)
+    Converts text into a 768-dimensional vector.
+    Uses Ollama's nomic-embed-text model.
+
+    How it works:
+      "What is RAG?" → [0.82, -0.14, 0.56, ...] (768 numbers)
       "Retrieval Augmented Generation" → [0.81, -0.13, 0.57, ...]
-      Bu iki vektor birbirine cok yakin → anlam benzer!
+      These two vectors are very close → the meanings are similar!
     """
 
     def __init__(
@@ -28,7 +28,7 @@ class OllamaEmbedder:
         self.base_url = base_url
 
     def embed(self, text: str) -> list[float]:
-        """Tek bir metni vektore cevir."""
+        """Convert a single piece of text into a vector."""
         response = httpx.post(
             f"{self.base_url}/api/embeddings",
             json={"model": self.model, "prompt": text},
@@ -40,8 +40,8 @@ class OllamaEmbedder:
         return vector
 
     def embed_many(self, texts: list[str]) -> list[list[float]]:
-        """Birden fazla metni vektore cevir."""
-        logger.info("Embedding %d metin...", len(texts))
+        """Convert multiple pieces of text into vectors."""
+        logger.info("Embedding %d texts...", len(texts))
         return [self.embed(t) for t in texts]
 
     def is_available(self) -> bool:

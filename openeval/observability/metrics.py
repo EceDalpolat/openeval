@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass, field
 from typing import ClassVar
 
-# OpenAI fiyatları (Mayıs 2026, gpt-4o-mini)
+# OpenAI prices (May 2026, gpt-4o-mini)
 COST_PER_1K_TOKENS: dict[str, dict] = {
     "gpt-4o-mini":  {"input": 0.000150, "output": 0.000600},
     "gpt-4o":       {"input": 0.002500, "output": 0.010000},
@@ -13,7 +13,7 @@ COST_PER_1K_TOKENS: dict[str, dict] = {
 
 @dataclass
 class CallMetrics:
-    """Tek bir LLM çağrısının metrikleri."""
+    """Metrics for a single LLM call."""
     model: str
     input_tokens: int
     output_tokens: int
@@ -25,7 +25,7 @@ class CallMetrics:
 
     @property
     def cost_usd(self) -> float:
-        # Lokal modeller (Ollama) ücretsiz — API maliyeti yok.
+        # Local models (Ollama) are free — no API cost.
         if self.model.startswith(("ollama/", "local/")):
             return 0.0
         pricing = COST_PER_1K_TOKENS.get(self.model, COST_PER_1K_TOKENS["default"])
@@ -46,8 +46,8 @@ class CallMetrics:
 @dataclass
 class SessionMetrics:
     """
-    Tüm eval oturumunun birikimli metrikleri.
-    Evaluator.run() boyunca birikiyor.
+    Cumulative metrics for the whole eval session.
+    Accumulated throughout Evaluator.run().
     """
     calls: list[CallMetrics] = field(default_factory=list)
 
@@ -85,7 +85,7 @@ class SessionMetrics:
 
 
 class Timer:
-    """Context manager ile latency ölç."""
+    """Measure latency with a context manager."""
 
     def __enter__(self):
         self._start = time.perf_counter()
@@ -94,8 +94,8 @@ class Timer:
     def __exit__(self, *_):
         self.elapsed_ms = (time.perf_counter() - self._start) * 1000
 
-# Kullanım:
+# Usage:
 # with Timer() as t:
 #     response = connector.generate(prompt)
 # print(t.elapsed_ms)  # → 1243.7
-    # SessionMetrics'e eksik property'ler — evaluator.py icin
+    # missing properties for SessionMetrics — for evaluator.py

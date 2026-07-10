@@ -10,7 +10,7 @@ from .base import BaseConnector, ModelResponse
 class OpenAIConnector(BaseConnector):
     """
     OpenAI API connector.
-    GPT-4o, GPT-4o-mini ve diğer OpenAI modelleri için.
+    For GPT-4o, GPT-4o-mini and other OpenAI models.
     """
 
     def __init__(self, model: str = "gpt-4o-mini", api_key: str | None = None):
@@ -32,13 +32,13 @@ class OpenAIConnector(BaseConnector):
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        self.logger.info("OpenAI generate başladı: model=%s", self._model)
+        self.logger.info("OpenAI generate started: model=%s", self._model)
 
         with Timer() as timer:
             response = self._client.chat.completions.create(
                 model=self._model,
                 messages=messages,
-                temperature=0,      # eval için deterministik olsun
+                temperature=0,      # deterministic for evaluation
             )
 
         input_tokens = getattr(response.usage, "prompt_tokens", 0) if response.usage else 0
@@ -64,7 +64,7 @@ class OpenAIConnector(BaseConnector):
             )
 
         self.logger.info(
-            "OpenAI generate tamamlandı: model=%s, tokens=%d, latency_ms=%.1f",
+            "OpenAI generate completed: model=%s, tokens=%d, latency_ms=%.1f",
             self._model,
             call_metrics.total_tokens,
             call_metrics.latency_ms,

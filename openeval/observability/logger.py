@@ -11,18 +11,18 @@ console = Console()
 
 def get_logger(name: str, log_to_file: bool = True) -> logging.Logger:
     """
-    Merkezi logger factory.
-    
-    Her modül kendi logger'ını buradan alır:
+    Central logger factory.
+
+    Every module gets its own logger from here:
         logger = get_logger(__name__)
-    
-    __name__ → "openeval.judge.judge" gibi modül yolunu verir.
-    Bu sayede logda hangi dosyadan geldiği görünür.
+
+    __name__ → gives the module path, e.g. "openeval.judge.judge".
+    This way the log shows which file the message came from.
     """
 
     logger = logging.getLogger(name)
 
-    # Zaten handler eklenmiş mi? (get_logger iki kez çağrılırsa duplicate olmasın)
+    # Are handlers already attached? (avoid duplicates if get_logger is called twice)
     if logger.handlers:
         return logger
 
@@ -32,24 +32,24 @@ def get_logger(name: str, log_to_file: bool = True) -> logging.Logger:
     rich_handler = RichHandler(
         console=console,
         show_time=True,
-        show_path=True,          # hangi dosya:satır gösterir
-        rich_tracebacks=True,    # exception'ları güzel gösterir
+        show_path=True,          # shows which file:line
+        rich_tracebacks=True,    # renders exceptions nicely
         markup=True,
     )
-    rich_handler.setLevel(logging.INFO)  # Terminal'de sadece INFO+
+    rich_handler.setLevel(logging.INFO)  # only INFO+ in the terminal
     logger.addHandler(rich_handler)
 
-    # ── Dosya handler ────────────────────────────────────────
+    # ── File handler ─────────────────────────────────────────
     if log_to_file:
         log_dir = Path("logs")
         log_dir.mkdir(exist_ok=True)
 
-        # Her gün ayrı dosya: logs/openeval_2026-05-21.log
+        # A separate file each day: logs/openeval_2026-05-21.log
         today = datetime.now().strftime("%Y-%m-%d")
         log_file = log_dir / f"openeval_{today}.log"
 
         file_handler = logging.FileHandler(log_file, encoding="utf-8")
-        file_handler.setLevel(logging.DEBUG)  # Dosyada DEBUG dahil her şey
+        file_handler.setLevel(logging.DEBUG)  # everything including DEBUG in the file
         file_handler.setFormatter(logging.Formatter(
             fmt="%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",

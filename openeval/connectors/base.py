@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelResponse:
-    """Her connector'dan gelen yanıt bu formatta olur."""
+    """The response from every connector comes in this format."""
     content: str
     model: str
     input_tokens: int = 0
@@ -13,22 +13,22 @@ class ModelResponse:
 
 class BaseConnector(ABC):
     """
-    Tüm model connector'larının implement etmesi gereken interface.
-    Bu sınıfı direkt kullanamazsın — sadece miras alınır.
+    The interface every model connector must implement.
+    You cannot use this class directly — it is only meant to be subclassed.
     """
 
     @abstractmethod
     def generate(self, prompt: str, system: str = "") -> ModelResponse:
-        """Modele prompt gönder, cevap al."""
+        """Send a prompt to the model and get a response."""
         ...
 
     @abstractmethod
     def is_available(self) -> bool:
-        """Model erişilebilir mi? (API key var mı, servis çalışıyor mu?)"""
+        """Is the model reachable? (Is there an API key, is the service running?)"""
         ...
 
     @property
     @abstractmethod
     def model_name(self) -> str:
-        """Modelin adı."""
+        """The model's name."""
         ...
