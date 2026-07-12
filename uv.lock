@@ -897,7 +897,7 @@ wheels = [
 ]
 
 [[package]]
-name = "openeval"
+name = "openeval-llm"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
